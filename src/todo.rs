@@ -1,11 +1,44 @@
 
 use std::fs::File;
 use std::io::{Read, Write, SeekFrom, Seek};
+use crossterm::{
+    execute, cursor::{MoveTo, position},
+    style::{SetBackgroundColor, Color,  ResetColor}
+};
 
+#[macro_export]
+macro_rules! help_msg {
+    () => {
+        println!(r#"
+ use case:
+     todo [operation] [argument]
+
+ operations:
+     --list   Lists all Tasks in to-do (no argument)
+     --add    Adds task to to-do (requires 1 argument)
+     --remove Removes a task with the provided task ID (requires 1 argument)
+     --help   Prints help message
+
+ examples:
+     todo --list
+         Lists all the tasks
+
+     todo --add "Touch grass"
+         Adds the task
+
+     todo --remove 1
+         Removes task which has ID 1
+        "#);
+    }
+}
 
 pub struct Todo {
     pub tasks: Vec<String>,
     pub file:  File,
+}
+
+pub struct ListOptions {
+    pub cur: Option<usize>,
 }
 
 impl Todo {
@@ -66,7 +99,7 @@ impl Todo {
         Ok(())
     }
 
-    pub fn list(&self) -> Result<(), String> {
+    pub fn list<W: Write>(&self, mut w: W, options: ListOptions) -> Result<(), String> {
         let tasks_cell_width = self.tasks
             .iter()
             .map(|s| s.len())
@@ -77,21 +110,48 @@ impl Todo {
             return Err("No Tasks!".to_string());
         }
 
-        println!("┏━━━━━┳━{}━┓", "━".repeat(tasks_cell_width));
-        println!("┃ IDs ┃ Tasks{} ┃", " ".repeat(
+        writeln!(w, "┏━━━━━┳━{}━┓", "━".repeat(tasks_cell_width)).unwrap();
+        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
+
+        writeln!(w, "┃ IDs ┃ Tasks{} ┃", " ".repeat(
             if tasks_cell_width - 5 == 0 { 0 } else { tasks_cell_width - 5 }
-        ));
-        println!("┣━━━━━╋━{}━┫", "━".repeat(tasks_cell_width));
+        )).unwrap();
+        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
+
+        writeln!(w, "┣━━━━━╋━{}━┫", "━".repeat(tasks_cell_width)).unwrap();
+        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
         for i in 0..=self.tasks.len() - 1 {
             let task = &self.tasks[i];
             let task_cell_length = task.len();
-            println!("┃ {:2}  ┃ {} ┃",
-                i, task.to_owned() + &" ".repeat(tasks_cell_width - task_cell_length)
-            );
-        }
 
-        println!("┗━━━━━┻━{}━┛", "━".repeat(tasks_cell_width));
+            if let Some(j) = options.cur && i == j {
+                execute!(w,
+                    SetBackgroundColor(Color::Green),
+                ).unwrap();
+
+                writeln!(w, "┃ {:2}  ┃ {} ┃",
+                    i, task.to_owned() + &" ".repeat(tasks_cell_width - task_cell_length)
+                ).unwrap();
+
+                execute!(w,
+                    MoveTo(0, position().unwrap().1),
+                    ResetColor
+                ).unwrap();
+
+                continue;
+            }
+
+            writeln!(w, "┃ {:2}  ┃ {} ┃",
+                i, task.to_owned() + &" ".repeat(tasks_cell_width - task_cell_length)
+            ).unwrap();
+
+            execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
+        }
+        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
+
+        writeln!(w, "┗━━━━━┻━{}━┛", "━".repeat(tasks_cell_width)).unwrap();
+        execute!(w, MoveTo(0, position().unwrap().1 - (4 + self.tasks.len()) as u16)).unwrap();
 
         Ok(())
     }

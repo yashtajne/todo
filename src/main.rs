@@ -1,34 +1,13 @@
 
 use std::env;
+use std::io::stdout;
 use std::fs::OpenOptions;
 
 mod todo;
 use todo::*;
 
-macro_rules! help_msg {
-    () => {
-        println!(r#"
- use case:
-     todo [operation] [argument]
-
- operations:
-     --list   Lists all Tasks in to-do (no argument)
-     --add    Adds task to to-do (requires 1 argument)
-     --remove Removes a task with the provided task ID (requires 1 argument)
-     --help   Prints help message
-
- examples:
-     todo --list
-         Lists all the tasks
-
-     todo --add "Touch grass"
-         Adds the task
-
-     todo --remove 1
-         Removes task which has ID 1
-        "#);
-    }
-}
+mod tui;
+use tui::app::*;
 
 static TODO_FILE: &str = concat!(env!("HOME"), "/.todo");
 
@@ -71,11 +50,15 @@ fn main() {
                 }));
         }
         Some("--list") => {
-            todo.list()
+            let stdout = stdout();
+            todo.list(stdout, ListOptions { cur: None })
                 .unwrap_or_else(|e| {
                     panic!("\n[Error occured] -> {}", e);
                 });
         }
-        _ => { help_msg!(); }
+        _ => {
+            let app = App::new(todo);
+            app.run();
+        }
     }
 }
