@@ -8,7 +8,6 @@ pub struct Todo {
     pub file:  File,
 }
 
-
 impl Todo {
     pub fn init(mut file: File) -> Result<Self, String> {
         let mut tasks: Vec<String> = Vec::new();
@@ -18,7 +17,7 @@ impl Todo {
             return Err("Error while Reading ~/.todo file!".to_string());
         }
 
-        if buff.len() >= 1 {
+        if !buff.is_empty() {
             let mut cur = 0;
             for i in 0..=buff.len() - 1 {
                 if buff[i] == b'\n' {
@@ -31,7 +30,7 @@ impl Todo {
             }
         }
 
-        return Ok(Self { tasks, file });
+        Ok(Self { tasks, file })
     }
 
     pub fn add(&mut self, task: String) -> Result<(), String> {
@@ -39,10 +38,10 @@ impl Todo {
             return Err("Task already exists!".to_string())
         }
 
-        self.file.write_all(String::from(task.trim().to_owned() + "\n").as_bytes())
+        self.file.write_all((task.trim().to_owned() + "\n").as_bytes())
             .unwrap_or_else(|_e| { "Error while adding task!".to_string(); });
 
-        return Ok(())
+        Ok(())
     }
 
     pub fn remove(&mut self, taskid: usize) -> Result<(), String> {
@@ -60,10 +59,40 @@ impl Todo {
             .map_err(|_| "seek failed".to_string())?;
 
         for task in &self.tasks {
-            self.file.write_all(String::from(task.trim().to_owned() + "\n").as_bytes())
+            self.file.write_all((task.trim().to_owned() + "\n").as_bytes())
                 .unwrap_or_else(|_e| { "Error while adding task!".to_string(); });
         }
 
-        return Ok(())
+        Ok(())
+    }
+
+    pub fn list(&self) -> Result<(), String> {
+        let tasks_cell_width = self.tasks
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0);
+
+        if tasks_cell_width == 0 {
+            return Err("No Tasks!".to_string());
+        }
+
+        println!("┏━━━━━┳━{}━┓", "━".repeat(tasks_cell_width));
+        println!("┃ IDs ┃ Tasks{} ┃", " ".repeat(
+            if tasks_cell_width - 5 == 0 { 0 } else { tasks_cell_width - 5 }
+        ));
+        println!("┣━━━━━╋━{}━┫", "━".repeat(tasks_cell_width));
+
+        for i in 0..=self.tasks.len() - 1 {
+            let task = &self.tasks[i];
+            let task_cell_length = task.len();
+            println!("┃ {:2}  ┃ {} ┃",
+                i, task.to_owned() + &" ".repeat(tasks_cell_width - task_cell_length)
+            );
+        }
+
+        println!("┗━━━━━┻━{}━┛", "━".repeat(tasks_cell_width));
+
+        Ok(())
     }
 }
