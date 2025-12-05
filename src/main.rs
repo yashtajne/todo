@@ -51,13 +51,13 @@ fn main() {
         }
         Some("--list") => {
             let stdout = stdout();
-            todo.list(stdout, ListOptions { cur: None })
+            todo.list(stdout, &ListOptions { cur: None, draw_color: crossterm::style::Color::Black })
                 .unwrap_or_else(|e| {
                     panic!("\n[Error occured] -> {}", e);
                 });
         }
         _ => {
-            let app = App::new(todo);
+            let mut app = App::new(todo);
             app.run();
         }
     }

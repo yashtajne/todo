@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write, SeekFrom, Seek};
 use crossterm::{
     execute, cursor::{MoveTo, position},
-    style::{SetBackgroundColor, Color,  ResetColor}
+    style::{SetForegroundColor, Color,  ResetColor}
 };
 
 #[macro_export]
@@ -35,13 +35,24 @@ macro_rules! help_msg {
 pub struct Todo {
     pub tasks: Vec<String>,
     pub file:  File,
+    pub tasks_cell_width: usize,
 }
 
 pub struct ListOptions {
+    pub draw_color: Color,
     pub cur: Option<usize>,
 }
 
 impl Todo {
+    pub fn refresh(&mut self) {
+        let tasks_cell_width = self.tasks
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0);
+
+        self.tasks_cell_width = tasks_cell_width;
+    }
     pub fn init(mut file: File) -> Result<Self, String> {
         let mut tasks: Vec<String> = Vec::new();
         let mut buff: Vec<u8> = Vec::new();
@@ -63,7 +74,13 @@ impl Todo {
             }
         }
 
-        Ok(Self { tasks, file })
+        let tasks_cell_width = tasks
+            .iter()
+            .map(|s| s.len())
+            .max()
+            .unwrap_or(0);
+
+        Ok(Self { tasks, file, tasks_cell_width })
     }
 
     pub fn add(&mut self, task: String) -> Result<(), String> {
@@ -99,59 +116,57 @@ impl Todo {
         Ok(())
     }
 
-    pub fn list<W: Write>(&self, mut w: W, options: ListOptions) -> Result<(), String> {
-        let tasks_cell_width = self.tasks
-            .iter()
-            .map(|s| s.len())
-            .max()
-            .unwrap_or(0);
+    pub fn list<W: Write>(&self, mut w: W, options: &ListOptions) -> Result<(), String> {
+        if self.tasks_cell_width == 0 { return Err("No Tasks!".to_string()); }
 
-        if tasks_cell_width == 0 {
-            return Err("No Tasks!".to_string());
-        }
+        execute!(w,
+            SetForegroundColor(options.draw_color),
+        ).unwrap();
 
-        writeln!(w, "┏━━━━━┳━{}━┓", "━".repeat(tasks_cell_width)).unwrap();
+        writeln!(w, "┏━━━━━┳━{}━┓", "━".repeat(self.tasks_cell_width)).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
         writeln!(w, "┃ IDs ┃ Tasks{} ┃", " ".repeat(
-            if tasks_cell_width - 5 == 0 { 0 } else { tasks_cell_width - 5 }
+            if self.tasks_cell_width - 5 == 0 { 0 } else { self.tasks_cell_width - 5 }
         )).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
-        writeln!(w, "┣━━━━━╋━{}━┫", "━".repeat(tasks_cell_width)).unwrap();
+        writeln!(w, "┣━━━━━╋━{}━┫", "━".repeat(self.tasks_cell_width)).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
         for i in 0..=self.tasks.len() - 1 {
             let task = &self.tasks[i];
             let task_cell_length = task.len();
 
-            if let Some(j) = options.cur && i == j {
-                execute!(w,
-                    SetBackgroundColor(Color::Green),
-                ).unwrap();
+            if let Some(j) = options.cur && i == j {}
+//               execute!(w,
+//                   SetBackgroundColor(Color::White),
+//                   SetForegroundColor(options.draw_color),
+//               ).unwrap();
+//
+//               writeln!(w, "┃ {:2}  ┃ {} ┃",
+//                   i, task.to_owned() + &" ".repeat(self.tasks_cell_width - task_cell_length)
+//               ).unwrap();
+//
+//               execute!(w,
+//                   MoveTo(0, position().unwrap().1),
+//                   ResetColor
+//               ).unwrap();
+//
+//               continue;
+//           }
 
-                writeln!(w, "┃ {:2}  ┃ {} ┃",
-                    i, task.to_owned() + &" ".repeat(tasks_cell_width - task_cell_length)
-                ).unwrap();
-
-                execute!(w,
-                    MoveTo(0, position().unwrap().1),
-                    ResetColor
-                ).unwrap();
-
-                continue;
-            }
 
             writeln!(w, "┃ {:2}  ┃ {} ┃",
-                i, task.to_owned() + &" ".repeat(tasks_cell_width - task_cell_length)
+                i, task.to_owned() + &" ".repeat(self.tasks_cell_width - task_cell_length)
             ).unwrap();
 
             execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
         }
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
-        writeln!(w, "┗━━━━━┻━{}━┛", "━".repeat(tasks_cell_width)).unwrap();
-        execute!(w, MoveTo(0, position().unwrap().1 - (4 + self.tasks.len()) as u16)).unwrap();
+        writeln!(w, "┗━━━━━┻━{}━┛", "━".repeat(self.tasks_cell_width)).unwrap();
+        execute!(w, ResetColor, MoveTo(0, position().unwrap().1 - (4 + self.tasks.len()) as u16)).unwrap();
 
         Ok(())
     }
