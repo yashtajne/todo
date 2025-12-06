@@ -45,13 +45,11 @@ pub struct ListOptions {
 
 impl Todo {
     pub fn refresh(&mut self) {
-        let tasks_cell_width = self.tasks
-            .iter()
-            .map(|s| s.len())
-            .max()
-            .unwrap_or(0);
-
-        self.tasks_cell_width = tasks_cell_width;
+         self.tasks_cell_width = self.tasks
+             .iter()
+             .map(|s| s.len())
+             .max()
+             .unwrap_or(0);
     }
     pub fn init(mut file: File) -> Result<Self, String> {
         let mut tasks: Vec<String> = Vec::new();
@@ -84,10 +82,6 @@ impl Todo {
     }
 
     pub fn add(&mut self, task: String) -> Result<(), String> {
-        if self.tasks.contains(&task) {
-            return Err("Task already exists!".to_string())
-        }
-
         self.file.write_all((task.trim().to_owned() + "\n").as_bytes())
             .unwrap_or_else(|_e| { "Error while adding task!".to_string(); });
 
@@ -117,21 +111,22 @@ impl Todo {
     }
 
     pub fn list<W: Write>(&self, mut w: W, options: &ListOptions) -> Result<(), String> {
-        if self.tasks_cell_width == 0 { return Err("No Tasks!".to_string()); }
+        if self.tasks_cell_width == 0
+            || self.tasks.is_empty() { return Err("No Tasks!".to_string()); }
 
         execute!(w,
             SetForegroundColor(options.draw_color),
         ).unwrap();
 
-        writeln!(w, "┏━━━━━┳━{}━┓", "━".repeat(self.tasks_cell_width)).unwrap();
+        writeln!(w, "┏━━━━━┳━{}━┓ ", "━".repeat(self.tasks_cell_width)).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
-        writeln!(w, "┃ IDs ┃ Tasks{} ┃", " ".repeat(
-            if self.tasks_cell_width - 5 == 0 { 0 } else { self.tasks_cell_width - 5 }
+        writeln!(w, "┃ IDs ┃ Tasks{} ┃ ", " ".repeat(
+            if self.tasks_cell_width.saturating_sub(5) == 0 { 0 } else { self.tasks_cell_width - 5 }
         )).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
-        writeln!(w, "┣━━━━━╋━{}━┫", "━".repeat(self.tasks_cell_width)).unwrap();
+        writeln!(w, "┣━━━━━╋━{}━┫ ", "━".repeat(self.tasks_cell_width)).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
         for i in 0..=self.tasks.len() - 1 {
@@ -157,7 +152,7 @@ impl Todo {
 //           }
 
 
-            writeln!(w, "┃ {:2}  ┃ {} ┃",
+            writeln!(w, "┃ {:2}  ┃ {} ┃ ",
                 i, task.to_owned() + &" ".repeat(self.tasks_cell_width - task_cell_length)
             ).unwrap();
 
@@ -165,8 +160,8 @@ impl Todo {
         }
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
-        writeln!(w, "┗━━━━━┻━{}━┛", "━".repeat(self.tasks_cell_width)).unwrap();
-        execute!(w, ResetColor, MoveTo(0, position().unwrap().1 - (4 + self.tasks.len()) as u16)).unwrap();
+        writeln!(w, "┗━━━━━┻━{}━┛ ", "━".repeat(self.tasks_cell_width)).unwrap();
+        execute!(w, ResetColor).unwrap();
 
         Ok(())
     }
