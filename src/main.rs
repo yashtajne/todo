@@ -4,10 +4,10 @@ use std::io::stdout;
 use std::fs::OpenOptions;
 
 mod todo;
-use todo::*;
+use todo::{Todo, Mode, ListOptions};
 
 mod tui;
-use tui::app::*;
+use tui::app::{App};
 
 static TODO_FILE: &str = concat!(env!("HOME"), "/.todo");
 
@@ -51,7 +51,10 @@ fn main() {
         }
         Some("--list") => {
             let stdout = stdout();
-            todo.list(stdout, &ListOptions { cur: None, draw_color: crossterm::style::Color::Black })
+            todo.list(stdout, &ListOptions {
+                cur: None,
+                mode: Mode::Normal
+            })
                 .unwrap_or_else(|e| {
                     panic!("\n[Error occured] -> {}", e);
                 });

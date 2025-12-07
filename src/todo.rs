@@ -3,7 +3,11 @@ use std::fs::File;
 use std::io::{Read, Write, SeekFrom, Seek};
 use crossterm::{
     execute, cursor::{MoveTo, position},
-    style::{SetForegroundColor, Color,  ResetColor}
+    style::{
+        Print,
+        Color,  ResetColor,
+        SetBackgroundColor, // SetForegroundColor
+    }
 };
 
 #[macro_export]
@@ -32,6 +36,8 @@ macro_rules! help_msg {
     }
 }
 
+pub enum Mode { Normal, Insert }
+
 pub struct Todo {
     pub tasks: Vec<String>,
     pub file:  File,
@@ -39,7 +45,9 @@ pub struct Todo {
 }
 
 pub struct ListOptions {
-    pub draw_color: Color,
+    // bg_col: Option<Color>,
+    // fg_col: Option<Color>,
+    pub mode: Mode,
     pub cur: Option<usize>,
 }
 
@@ -114,10 +122,6 @@ impl Todo {
         if self.tasks_cell_width == 0
             || self.tasks.is_empty() { return Err("No Tasks!".to_string()); }
 
-        execute!(w,
-            SetForegroundColor(options.draw_color),
-        ).unwrap();
-
         writeln!(w, "┏━━━━━┳━{}━┓ ", "━".repeat(self.tasks_cell_width)).unwrap();
         execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
@@ -133,24 +137,24 @@ impl Todo {
             let task = &self.tasks[i];
             let task_cell_length = task.len();
 
-            if let Some(j) = options.cur && i == j {}
-//               execute!(w,
-//                   SetBackgroundColor(Color::White),
-//                   SetForegroundColor(options.draw_color),
-//               ).unwrap();
-//
-//               writeln!(w, "┃ {:2}  ┃ {} ┃",
-//                   i, task.to_owned() + &" ".repeat(self.tasks_cell_width - task_cell_length)
-//               ).unwrap();
-//
-//               execute!(w,
-//                   MoveTo(0, position().unwrap().1),
-//                   ResetColor
-//               ).unwrap();
-//
-//               continue;
-//           }
+            if let Some(j) = options.cur && i == j {
+                execute!(w,
+                    Print("┃"),
+                    SetBackgroundColor(
+                        if let Mode::Insert = options.mode { Color::Green }
+                        else { Color::DarkGrey }
+                    ),
+                    Print(format!(" {:2}  ", i)),
+                    Print("┃"),
+                    Print(format!(" {} ", task.to_owned()
+                       + &" ".repeat(self.tasks_cell_width - task_cell_length))),
+                    ResetColor,
+                    Print("┃ \n"),
+                    MoveTo(0, position().unwrap().1),
+                ).unwrap();
 
+                continue;
+            }
 
             writeln!(w, "┃ {:2}  ┃ {} ┃ ",
                 i, task.to_owned() + &" ".repeat(self.tasks_cell_width - task_cell_length)
@@ -158,7 +162,6 @@ impl Todo {
 
             execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
         }
-        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
 
         writeln!(w, "┗━━━━━┻━{}━┛ ", "━".repeat(self.tasks_cell_width)).unwrap();
         execute!(w, ResetColor).unwrap();
