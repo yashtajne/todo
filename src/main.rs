@@ -59,9 +59,12 @@ fn main() {
                     panic!("\n[Error occured] -> {}", e);
                 });
         }
-        _ => {
+        _ if args.len() == 1 => {
             let mut app = App::new(todo);
             app.run();
+        }
+        _ => {
+            panic!("\n[Error occured] -> Invalid args!");
         }
     }
 }

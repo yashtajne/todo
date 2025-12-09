@@ -2,11 +2,13 @@
 use std::fs::File;
 use std::io::{Read, Write, SeekFrom, Seek};
 use crossterm::{
-    execute, cursor::{MoveTo, position},
+    queue,
+    cursor::{MoveTo, position},
     style::{
-        Print,
+        Print, Stylize,
         Color,  ResetColor,
-        SetBackgroundColor, // SetForegroundColor
+        // SetBackgroundColor,
+        // SetForegroundColor
     }
 };
 
@@ -45,20 +47,20 @@ pub struct Todo {
 }
 
 pub struct ListOptions {
-    // bg_col: Option<Color>,
-    // fg_col: Option<Color>,
     pub mode: Mode,
     pub cur: Option<usize>,
 }
 
 impl Todo {
     pub fn refresh(&mut self) {
-         self.tasks_cell_width = self.tasks
+        let w = self.tasks
              .iter()
              .map(|s| s.len())
              .max()
              .unwrap_or(0);
+        self.tasks_cell_width = if w <= 5 { 5 } else { w };
     }
+
     pub fn init(mut file: File) -> Result<Self, String> {
         let mut tasks: Vec<String> = Vec::new();
         let mut buff: Vec<u8> = Vec::new();
@@ -122,49 +124,82 @@ impl Todo {
         if self.tasks_cell_width == 0
             || self.tasks.is_empty() { return Err("No Tasks!".to_string()); }
 
-        writeln!(w, "┏━━━━━┳━{}━┓ ", "━".repeat(self.tasks_cell_width)).unwrap();
-        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
-
-        writeln!(w, "┃ IDs ┃ Tasks{} ┃ ", " ".repeat(
-            if self.tasks_cell_width.saturating_sub(5) == 0 { 0 } else { self.tasks_cell_width - 5 }
-        )).unwrap();
-        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
-
-        writeln!(w, "┣━━━━━╋━{}━┫ ", "━".repeat(self.tasks_cell_width)).unwrap();
-        execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
+        queue!(
+            w,
+            Print(format!("┏━━━━━┳━{}━┓ \n", "━".repeat(
+                if self.tasks_cell_width < 5 { 5 }
+                else { self.tasks_cell_width }
+            ))),
+            MoveTo(0, position().unwrap().1),
+            Print(format!("┃ IDs ┃ Tasks{} ┃ \n", " ".repeat(
+                if self.tasks_cell_width.saturating_sub(5) == 0 { 0 }
+                else { self.tasks_cell_width - 5 }
+            ))),
+            MoveTo(0, position().unwrap().1),
+            Print(format!("┣━━━━━╋━{}━┫ \n", "━".repeat(
+                if self.tasks_cell_width < 5 { 5 }
+                else { self.tasks_cell_width }
+            ))),
+            MoveTo(0, position().unwrap().1),
+        ).unwrap();
 
         for i in 0..=self.tasks.len() - 1 {
             let task = &self.tasks[i];
-            let task_cell_length = task.len();
+            // let task_cell_length = task.len();
+            let is_in_insert_mode = matches!(options.mode, Mode::Insert);
 
-            if let Some(j) = options.cur && i == j {
-                execute!(w,
-                    Print("┃"),
-                    SetBackgroundColor(
-                        if let Mode::Insert = options.mode { Color::Green }
-                        else { Color::DarkGrey }
-                    ),
-                    Print(format!(" {:2}  ", i)),
-                    Print("┃"),
-                    Print(format!(" {} ", task.to_owned()
-                       + &" ".repeat(self.tasks_cell_width - task_cell_length))),
-                    ResetColor,
-                    Print("┃ \n"),
-                    MoveTo(0, position().unwrap().1),
-                ).unwrap();
-
-                continue;
-            }
-
-            writeln!(w, "┃ {:2}  ┃ {} ┃ ",
-                i, task.to_owned() + &" ".repeat(self.tasks_cell_width - task_cell_length)
+            queue!(w,
+                Print("┃"),
+                Print(
+                    format!(" {:2}  ", i)
+                        .bold()
+                        .on(
+                            if options.cur == Some(i) {
+                                if is_in_insert_mode { Color::Green }
+                                else { Color::DarkGrey }
+                            }
+                            else { Color::Reset }
+                        )
+                        .with(
+                            if is_in_insert_mode { Color::Rgb { r: 255, g: 255, b: 255} }
+                            else { Color::Reset }
+                        )
+                ),
+                Print("┃"),
+                Print(
+                    format!(" {}{} ", task.to_owned(), " ".repeat(
+                            self.tasks_cell_width.saturating_sub(task.len())
+                        )
+                    )
+                    .bold()
+                    .on(
+                        if options.cur == Some(i) {
+                            if is_in_insert_mode { Color::Green }
+                            else { Color::DarkGrey }
+                        }
+                        else { Color::Reset }
+                    )
+                    .with(
+                        if is_in_insert_mode { Color::Rgb { r: 255, g: 255, b: 255} }
+                        else { Color::Reset }
+                    )
+                ),
+                Print("┃ \n"),
+                MoveTo(0, position().unwrap().1),
+                ResetColor,
             ).unwrap();
-
-            execute!(w, MoveTo(0, position().unwrap().1)).unwrap();
         }
 
-        writeln!(w, "┗━━━━━┻━{}━┛ ", "━".repeat(self.tasks_cell_width)).unwrap();
-        execute!(w, ResetColor).unwrap();
+        queue!(
+            w,
+            Print(format!("┗━━━━━┻━{}━┛ \n", "━".repeat(
+                if self.tasks_cell_width < 5 { 5 }
+                else { self.tasks_cell_width }
+            ))),
+            ResetColor
+        ).unwrap();
+
+        w.flush().unwrap();
 
         Ok(())
     }

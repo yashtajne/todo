@@ -1,13 +1,13 @@
 
 use std::io::{stdout, Write};
 use crossterm::{
-    queue, execute, cursor::{MoveTo,  position},
+    queue, execute, cursor::{self, MoveTo, position},
     event::{read, Event, KeyCode, KeyModifiers},
     terminal::{enable_raw_mode, disable_raw_mode},
     style::{
-        Color, ResetColor, Print,
-        SetBackgroundColor, SetForegroundColor,
-        Attribute, SetAttribute
+        Color, Stylize, Print,
+        // SetBackgroundColor, SetForegroundColor,
+        // Attribute, SetAttribute
     }
 };
 
@@ -24,51 +24,49 @@ impl App {
     pub fn run(&mut self) {
         enable_raw_mode().expect("");
         let mut stdout = stdout();
-        // execute!(stdout, cursor::Hide).unwrap();
+        execute!(stdout, cursor::Hide).unwrap();
 
         let mut wanna_quit = false;
         let mut ignore_binds = false;
         let mut list_options = ListOptions {
             cur: Some(0),
             mode: Mode::Normal,
-            // bg_col: if ignore_binds { Color::Red }
-            //     else { Color::Rgb { r: 0, g: 0, b: 0 } },
-            // fg_col: Color::Rgb { r: 255, g: 255, b: 255 }
         };
 
         loop {
-
-            // if ignore_binds {
-            //     list_options.fg_col = Color::Green;
-            // } else { list_options.fg_col = Color::Black; }
-
             let res = self.todo.list(&stdout, &list_options);
             if res.is_ok() {
-                execute!(stdout, MoveTo(0, position().unwrap().1 - (4 + self.todo.tasks.len()) as u16)).unwrap();
+                queue!(
+                    stdout,
+                    MoveTo(0, position().unwrap().1 - (4 + self
+                        .todo
+                        .tasks
+                        .len()) as u16
+                    )
+                ).unwrap();
             } else {
                 let _ = res.map_err(|e| {
                     execute!(stdout,
-                        SetAttribute(Attribute::Bold),
-                        SetBackgroundColor(Color::Red),
-                        SetForegroundColor(Color::Rgb {r: 255, g: 255, b: 255}),
-                    ).unwrap();
-                    write!(stdout, "Error: {}", e).unwrap();
-                    execute!(stdout,
-                        ResetColor,
-                        SetAttribute(Attribute::Reset),
+                        Print(
+                            format!("Error: {}", e)
+                                .bold()
+                                .on(Color::Red)
+                                .with(Color::Rgb {r: 255, g: 255, b: 255})
+                        ),
                         MoveTo(0, position().unwrap().1)
                     ).unwrap();
                 });
             }
 
             if wanna_quit { break; }
+            let mut quit = || { wanna_quit = true; };
 
             if let Ok(Event::Key(key)) = read() {
                 match key.code {
                     /* ------------ Quit --------------- */
                     KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL
-                        => { wanna_quit = true },
-                    KeyCode::Char('q') if !ignore_binds => { wanna_quit = true },
+                        => { quit() },
+                    KeyCode::Char('q') if !ignore_binds => { quit() },
 
                     /* ---------- Navigation ----------- */
                     KeyCode::Char('j') if !ignore_binds => {
@@ -85,23 +83,27 @@ impl App {
                         && !self.todo.tasks.is_empty() => {
 
                         self.todo.remove(list_options.cur.unwrap()).unwrap();
-                        // if self.todo.tasks.is_empty() {
-                        //     list_options.cur = None;
-                        //     continue;
-                        // };
 
                         let prev_pos = position().unwrap();
                         for _ in 0..=(
                             if self.todo.tasks.is_empty() { 1 }
                             else { self.todo.tasks.len() }
                         ) + 4 {
+                            let fill = self.todo.tasks_cell_width + 10;
                             queue!(
                                 stdout,
-                                Print(format!("{}\n", " ".repeat(self.todo.tasks_cell_width + 10))),
+                                Print(
+                                    format!("{}\n", " ".repeat(
+                                        if fill < 16 { 16 } else { fill }
+                                    )
+                                )),
                                 MoveTo(0, position().unwrap().1)
                             ).unwrap();
                         }
-                        queue!(stdout, MoveTo(prev_pos.0 as u16, prev_pos.1 as u16)).unwrap();
+                        queue!(
+                            stdout,
+                            MoveTo(prev_pos.0 as u16, prev_pos.1 as u16)
+                        ).unwrap();
                         stdout.flush().unwrap();
 
                         list_options.cur = if !self.todo.tasks.is_empty() {
@@ -138,16 +140,31 @@ impl App {
                     /* ---------- Exit Mode ---------- */
                     KeyCode::Esc => {
                         if ignore_binds {
+
                             let prev_pos = position().unwrap();
-                            execute!(
+                            for _ in 0..=(
+                                if self.todo.tasks.is_empty() { 1 }
+                                else { self.todo.tasks.len() }
+                            ) + 4 {
+                                let fill = self.todo.tasks_cell_width + 10;
+                                queue!(
+                                    stdout,
+                                    Print(
+                                        format!("{}\n", " ".repeat(
+                                            if fill < 16 { 16 } else { fill }
+                                        )
+                                    )),
+                                    MoveTo(0, position().unwrap().1)
+                                ).unwrap();
+                            }
+                            queue!(
                                 stdout,
-                                MoveTo(0, position().unwrap().1 + (3 + self.todo.tasks.len()) as u16),
-                                Print(" ".repeat(self.todo.tasks_cell_width + 10)),
                                 MoveTo(prev_pos.0 as u16, prev_pos.1 as u16)
                             ).unwrap();
+                            stdout.flush().unwrap();
+
                             self.todo.tasks.remove(self.todo.tasks.len() - 1);
                             ignore_binds = false;
-                            wanna_quit = true;
                             continue;
                         }
                         break;
@@ -166,9 +183,14 @@ impl App {
         }
 
         if !self.todo.tasks.is_empty() {
-            execute!(stdout, MoveTo(0, position().unwrap().1 + (4 + self.todo.tasks.len()) as u16)).unwrap();
-        } else { execute!(stdout, MoveTo(0, position().unwrap().1 + 1)).unwrap(); }
-        // execute!(stdout, cursor::Show).unwrap();
-        disable_raw_mode().expect("");
+            queue!(
+                stdout,
+                MoveTo(0, position().unwrap().1 + (4 + self.todo.tasks.len()) as u16)
+            ).unwrap();
+        } else { queue!(stdout, MoveTo(0, position().unwrap().1 + 1)).unwrap(); }
+        queue!(stdout, cursor::Show).unwrap();
+        stdout.flush().unwrap();
+
+        disable_raw_mode().expect("error");
     }
 }
