@@ -11,7 +11,8 @@ use crossterm::{
     }
 };
 
-use crate::todo::{Todo, Mode, ListOptions};
+use crate::tui::opt::{Todo, Task, Mode, ListOptions};
+use crate::tui::status::Status;
 
 pub struct App {
     todo: Todo,
@@ -81,7 +82,6 @@ impl App {
                     /* ------------ Delete ------------- */
                     KeyCode::Char('d') if !ignore_binds
                         && !self.todo.tasks.is_empty() => {
-
                         self.todo.remove(list_options.cur.unwrap()).unwrap();
 
                         let prev_pos = position().unwrap();
@@ -115,26 +115,29 @@ impl App {
                     KeyCode::Char('a') if !ignore_binds => {
                         ignore_binds = true;
                         list_options.mode = Mode::Insert;
-                        self.todo.tasks.push(String::new());
+                        self.todo.tasks.push(Task { status: Status::Create, task: String::new() });
                         list_options.cur = Some(self.todo.tasks.len() - 1);
                         continue;
                     }
                     KeyCode::Enter if ignore_binds => {
                         ignore_binds = false;
                         list_options.mode = Mode::Normal;
-                        if !self.todo.tasks.last().unwrap().is_empty() {
-                            self.todo.add(self.todo.tasks.last().unwrap().to_owned())
-                                .unwrap_or_else(|e| { eprintln!("e -> {}", e) });
-                        } else {
-                            self.todo.remove(self.todo.tasks.len() - 1).unwrap();
-                            list_options.cur = if !self.todo.tasks.is_empty() {
-                                Some(self.todo.tasks.len() - 1)
-                            } else { None }
+                        if let Some(mut t) = self.todo.tasks.pop() {
+                            if !t.task.is_empty() {
+                                t.status.set(Status::Pending);
+                                self.todo.add(&t).unwrap_or_else(|e| { eprintln!("e -> {}", e) });
+                                self.todo.tasks.push(t);
+                            } else {
+                                self.todo.remove(self.todo.tasks.len() - 1).unwrap();
+                                list_options.cur = if !self.todo.tasks.is_empty() {
+                                    Some(self.todo.tasks.len() - 1)
+                                } else { None }
+                            }
                         }
                     }
                     KeyCode::Backspace => {
                         if ignore_binds
-                            && let Some(l) = self.todo.tasks.last_mut() { l.pop(); }
+                            && let Some(l) = self.todo.tasks.last_mut() { l.task.pop(); }
                     }
 
                     /* ---------- Exit Mode ---------- */
@@ -175,7 +178,7 @@ impl App {
                 if ignore_binds
                     && let Some(l) = self.todo.tasks.last_mut()
                     && let Some(c) = key.code.as_char() {
-                    l.push(c);
+                    l.task.push(c);
                 }
 
                 self.todo.refresh();

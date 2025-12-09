@@ -4,10 +4,11 @@ use std::io::stdout;
 use std::fs::OpenOptions;
 
 mod todo;
-use todo::{Todo, Mode, ListOptions};
-
 mod tui;
+
 use tui::app::{App};
+use tui::opt::{Todo, Task, Mode, ListOptions};
+use tui::status::Status;
 
 static TODO_FILE: &str = concat!(env!("HOME"), "/.todo");
 
@@ -17,6 +18,8 @@ fn main() {
     let file = OpenOptions::new()
         .read(true)
         .write(true)
+        .create(true)
+        .truncate(false)
         .open(TODO_FILE)
         .expect("Failed to Open ~/.todo file!");
 
@@ -32,7 +35,7 @@ fn main() {
             if args.len() <= 2 {
                 panic!("Empty task!?");
             }
-            todo.add(args[2].clone())
+            todo.add(&Task { task: args[2].clone(), status: Status::Pending })
                 .unwrap_or_else(|e| {
                     panic!("\n[Error occured] -> {}", e);
                 });
