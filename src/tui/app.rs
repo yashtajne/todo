@@ -37,7 +37,7 @@ impl App {
         loop {
             let res = self.todo.list(&stdout, &list_options);
             if res.is_ok() {
-                queue!(
+                execute!(
                     stdout,
                     MoveTo(0, position().unwrap().1 - (4 + self
                         .todo
@@ -115,8 +115,9 @@ impl App {
                     KeyCode::Char('a') if !ignore_binds => {
                         ignore_binds = true;
                         list_options.mode = Mode::Insert;
+                        let tasks_len = self.todo.tasks.len();
                         self.todo.tasks.push(Task { status: Status::Create, task: String::new() });
-                        list_options.cur = Some(self.todo.tasks.len() - 1);
+                        list_options.cur = Some(tasks_len);
                         continue;
                     }
                     KeyCode::Enter if ignore_binds => {
@@ -140,6 +141,28 @@ impl App {
                             && let Some(l) = self.todo.tasks.last_mut() { l.task.pop(); }
                     }
 
+                    /* ---------- Update Status ---------- */
+                    KeyCode::Char(' ') if !ignore_binds => {
+                        if let Some(cur) = list_options.cur {
+                            let task = &mut self.todo.tasks[cur];
+                            let cur_stat = &task.status;
+                            let all_stat = Status::get_all();
+                            let all_stat_len = all_stat.len();
+                            let mut next_stat = Status::Invalid;
+
+                            for i in 0..all_stat_len {
+                                if cur_stat.get_code() == all_stat[i].get_code() {
+                                    next_stat = all_stat[(i + 1) % all_stat_len];
+                                }
+                            }
+
+                            task.status.set(next_stat);
+                            continue;
+                        }
+                    }
+                    /* ---------- Update Status ---------- */
+
+
                     /* ---------- Exit Mode ---------- */
                     KeyCode::Esc => {
                         if ignore_binds {
@@ -148,13 +171,13 @@ impl App {
                             for _ in 0..=(
                                 if self.todo.tasks.is_empty() { 1 }
                                 else { self.todo.tasks.len() }
-                            ) + 4 {
-                                let fill = self.todo.tasks_cell_width + 10;
+                            ) + 3 {
+                                let fill = self.todo.tasks_cell_width + 24;
                                 queue!(
                                     stdout,
                                     Print(
                                         format!("{}\n", " ".repeat(
-                                            if fill < 16 { 16 } else { fill }
+                                            if fill < 26 { 26 } else { fill }
                                         )
                                     )),
                                     MoveTo(0, position().unwrap().1)
@@ -170,7 +193,6 @@ impl App {
                             ignore_binds = false;
                             continue;
                         }
-                        break;
                     }
                     _ => {}
                 }
@@ -193,6 +215,8 @@ impl App {
         } else { queue!(stdout, MoveTo(0, position().unwrap().1 + 1)).unwrap(); }
         queue!(stdout, cursor::Show).unwrap();
         stdout.flush().unwrap();
+
+        self.todo.update().unwrap();
 
         disable_raw_mode().expect("error");
     }

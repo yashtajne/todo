@@ -99,13 +99,7 @@ impl Todo {
         Ok(())
     }
 
-    pub fn remove(&mut self, taskid: usize) -> Result<(), String> {
-        if taskid > self.tasks.len() {
-            return Err("No task with the prvided ID".to_string())
-        }
-
-        self.tasks.remove(taskid);
-
+    pub fn update(&mut self) -> Result<(), String> {
         if self.file.set_len(0).is_err() {
             return Err("Error while truncating todo file!".to_string())
         }
@@ -114,11 +108,25 @@ impl Todo {
             .map_err(|_| "seek failed".to_string())?;
 
         for task in &self.tasks {
-            self.file.write_all((task.task.trim().to_owned() + "\n").as_bytes())
-                .unwrap_or_else(|_e| { "Error while adding task!".to_string(); });
+            self.file.write_all(
+                format!(
+                    "{}{}\n",
+                    task.status.get_code(),
+                    task.task.trim()
+                ).as_bytes()
+            ).unwrap();
         }
 
         Ok(())
+    }
+
+    pub fn remove(&mut self, taskid: usize) -> Result<(), String> {
+        if taskid > self.tasks.len() {
+            return Err("No task with the prvided ID".to_string())
+        }
+
+        self.tasks.remove(taskid);
+        self.update()
     }
 
     pub fn list<W: Write>(&self, mut w: W, options: &ListOptions) -> Result<(), String> {
@@ -151,8 +159,6 @@ impl Todo {
 
             let s = status.get_string();
             let r = 9 - (s.len() as i8);
-
-            // println!("{}{}", s, r);
 
             queue!(w,
                 Print("┃"),
@@ -202,8 +208,12 @@ impl Todo {
                         else { Color::Reset }
                     )
                     .with(
-                        if is_in_insert_mode { Color::Rgb { r: 255, g: 255, b: 255} }
-                        else { Color::Reset }
+                        match status {
+                            Status::Completed => { Color::Rgb { r:   0, g: 205, b:   0 } }
+                            Status::Pending   => { Color::Rgb { r: 255, g:  28, b:  28 } }
+                            Status::OnHold    => { Color::Rgb { r: 145, g: 120, b: 254 } }
+                            _                 => { Color::Rgb { r: 255, g: 255, b: 255 } }
+                        }
                     )
                 ),
                 Print("┃ \n"),

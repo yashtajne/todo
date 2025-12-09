@@ -1,4 +1,5 @@
 
+#[derive(Copy, Clone)]
 pub enum Status {
     Completed,
     Pending,
@@ -41,5 +42,13 @@ impl Status {
 
     pub fn set(&mut self, s: Self) {
         *self = s
+    }
+
+    pub fn get_all() -> Vec<Self> {
+        vec![
+            Status::Completed,
+            Status::Pending,
+            Status::OnHold,
+        ]
     }
 }

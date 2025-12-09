@@ -35,10 +35,12 @@ fn main() {
             if args.len() <= 2 {
                 panic!("Empty task!?");
             }
-            todo.add(&Task { task: args[2].clone(), status: Status::Pending })
-                .unwrap_or_else(|e| {
-                    panic!("\n[Error occured] -> {}", e);
-                });
+            todo.add(&Task {
+                task: args[2].clone(),
+                status: Status::Pending
+            }).unwrap_or_else(|e| {
+                panic!("\n[Error occured] -> {}", e);
+            });
         }
         Some("--remove") => {
             if args.len() <= 2 {
