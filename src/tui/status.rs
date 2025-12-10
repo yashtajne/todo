@@ -35,7 +35,7 @@ impl Status {
             Status::Completed => { "Completed" },
             Status::Pending   => { "Pending" },
             Status::OnHold    => { "OnHold" },
-            Status::Create    => { "Create" },
+            Status::Create    => { "Creating" },
             Status::Invalid   => { "Invalid" }
         }
     }

@@ -1,5 +1,5 @@
 
-use std::io::{stdout, Write};
+use std::io::{self, stdout, Write};
 use crossterm::{
     queue, execute, cursor::{self, MoveTo, position},
     event::{read, Event, KeyCode, KeyModifiers},
@@ -21,6 +21,30 @@ pub struct App {
 
 impl App {
     pub fn new(todo: Todo) -> Self { Self { todo } }
+
+    pub fn clrprev(&self, stdout: &mut io::Stdout) {
+        let prev_pos = position().unwrap();
+        for _ in 0..=(
+            if self.todo.tasks.is_empty() { 1 }
+            else { self.todo.tasks.len() }
+        ) + 5 {
+            let fill = self.todo.tasks_cell_width + 24;
+            queue!(
+                stdout,
+                Print(
+                    format!("{}\n", " ".repeat(
+                        if fill < 26 { 26 } else { fill }
+                    )
+                )),
+                MoveTo(0, position().unwrap().1)
+            ).unwrap();
+        }
+        queue!(
+            stdout,
+            MoveTo(prev_pos.0 as u16, prev_pos.1 as u16)
+        ).unwrap();
+        stdout.flush().unwrap();
+    }
 
     pub fn run(&mut self) {
         enable_raw_mode().expect("");
@@ -83,28 +107,7 @@ impl App {
                     KeyCode::Char('d') if !ignore_binds
                         && !self.todo.tasks.is_empty() => {
                         self.todo.remove(list_options.cur.unwrap()).unwrap();
-
-                        let prev_pos = position().unwrap();
-                        for _ in 0..=(
-                            if self.todo.tasks.is_empty() { 1 }
-                            else { self.todo.tasks.len() }
-                        ) + 4 {
-                            let fill = self.todo.tasks_cell_width + 10;
-                            queue!(
-                                stdout,
-                                Print(
-                                    format!("{}\n", " ".repeat(
-                                        if fill < 16 { 16 } else { fill }
-                                    )
-                                )),
-                                MoveTo(0, position().unwrap().1)
-                            ).unwrap();
-                        }
-                        queue!(
-                            stdout,
-                            MoveTo(prev_pos.0 as u16, prev_pos.1 as u16)
-                        ).unwrap();
-                        stdout.flush().unwrap();
+                        self.clrprev(&mut stdout);
 
                         list_options.cur = if !self.todo.tasks.is_empty() {
                             Some(self.todo.tasks.len() - 1)
@@ -166,31 +169,13 @@ impl App {
                     /* ---------- Exit Mode ---------- */
                     KeyCode::Esc => {
                         if ignore_binds {
-
-                            let prev_pos = position().unwrap();
-                            for _ in 0..=(
-                                if self.todo.tasks.is_empty() { 1 }
-                                else { self.todo.tasks.len() }
-                            ) + 3 {
-                                let fill = self.todo.tasks_cell_width + 24;
-                                queue!(
-                                    stdout,
-                                    Print(
-                                        format!("{}\n", " ".repeat(
-                                            if fill < 26 { 26 } else { fill }
-                                        )
-                                    )),
-                                    MoveTo(0, position().unwrap().1)
-                                ).unwrap();
-                            }
-                            queue!(
-                                stdout,
-                                MoveTo(prev_pos.0 as u16, prev_pos.1 as u16)
-                            ).unwrap();
-                            stdout.flush().unwrap();
-
-                            self.todo.tasks.remove(self.todo.tasks.len() - 1);
                             ignore_binds = false;
+                            self.todo.tasks.remove(self.todo.tasks.len() - 1);
+                            self.clrprev(&mut stdout);
+                            if let Some(cur) = list_options.cur
+                                && !self.todo.tasks.is_empty()
+                            { list_options.cur = Some(cur - 1) }
+                            else { list_options.cur = None };
                             continue;
                         }
                     }
